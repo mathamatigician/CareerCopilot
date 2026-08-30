@@ -1,11 +1,25 @@
 import React from 'react';
-import { Sparkles, FileText, LayoutDashboard, User as UserIcon, LogIn, LogOut, PlusCircle, Keyboard } from 'lucide-react';
-import { User } from '../types';
+import {
+  Sparkles,
+  FileText,
+  LayoutDashboard,
+  User as UserIcon,
+  LogIn,
+  LogOut,
+  PlusCircle,
+  Keyboard,
+  CreditCard,
+  Zap,
+  Infinity as InfinityIcon,
+  Crown,
+} from 'lucide-react';
+import { User, UserSubscription } from '../types';
 
 interface HeaderProps {
-  currentTab: 'tailor' | 'dashboard' | 'profile';
-  onTabChange: (tab: 'tailor' | 'dashboard' | 'profile') => void;
+  currentTab: 'tailor' | 'dashboard' | 'profile' | 'pricing';
+  onTabChange: (tab: 'tailor' | 'dashboard' | 'profile' | 'pricing') => void;
   currentUser: User | null;
+  userSubscription?: UserSubscription | null;
   onOpenAuth: (mode: 'signin' | 'signup') => void;
   onLogout: () => void;
   onNewTailoring: () => void;
@@ -16,6 +30,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentTab,
   onTabChange,
   currentUser,
+  userSubscription,
   onOpenAuth,
   onLogout,
   onNewTailoring,
@@ -26,7 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-6 lg:gap-8">
             <button
               onClick={() => onTabChange('tailor')}
               className="flex items-center gap-2.5 group text-left cursor-pointer focus:outline-none"
@@ -50,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => onTabChange('tailor')}
                 id="nav-tailor-btn"
                 title="Tailor Application (Alt + T)"
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
                   currentTab === 'tailor'
                     ? 'bg-red-50 text-red-700 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -64,7 +79,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => onTabChange('dashboard')}
                 id="nav-dashboard-btn"
                 title="List Past Applications & Dashboard (Alt + A)"
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
                   currentTab === 'dashboard'
                     ? 'bg-red-50 text-red-700 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -81,7 +96,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => onTabChange('profile')}
                 id="nav-profile-btn"
                 title="Career Profile & Credentials (Alt + P)"
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
                   currentTab === 'profile'
                     ? 'bg-red-50 text-red-700 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -90,11 +105,69 @@ export const Header: React.FC<HeaderProps> = ({
                 <UserIcon className="w-4 h-4 text-rose-600" />
                 <span>Career Profile</span>
               </button>
+
+              <button
+                onClick={() => onTabChange('pricing')}
+                id="nav-pricing-btn"
+                title="Pricing & Subscription Plans (Alt + S)"
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                  currentTab === 'pricing'
+                    ? 'bg-red-50 text-red-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <CreditCard className="w-4 h-4 text-red-600" />
+                <span>Pricing</span>
+                <span className="px-1.5 py-0.5 text-[9px] font-extrabold uppercase rounded bg-amber-100 text-amber-900 border border-amber-300">
+                  ₹50+
+                </span>
+                <kbd className="hidden lg:inline-block px-1.5 py-0.2 text-[9px] font-mono font-bold bg-slate-100 text-slate-500 rounded border border-slate-200">
+                  Alt+S
+                </kbd>
+              </button>
             </nav>
           </div>
 
           {/* Right actions */}
           <div className="flex items-center gap-2.5">
+            {/* Subscription Credits Indicator / Upgrade Button */}
+            {userSubscription && (
+              <button
+                onClick={() => onTabChange('pricing')}
+                title="View Subscription & Remaining Free Samples (Alt + S)"
+                id="header-subscription-badge-btn"
+                className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                  userSubscription.isUnlimited || userSubscription.planId === 'lifetime'
+                    ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200 text-amber-900 hover:border-amber-300'
+                    : userSubscription.samplesUsed >= userSubscription.samplesLimit
+                    ? 'bg-red-50 border-red-300 text-red-700 animate-pulse'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
+                }`}
+              >
+                {userSubscription.planId === 'lifetime' ? (
+                  <>
+                    <Crown className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Lifetime Pro</span>
+                  </>
+                ) : userSubscription.isUnlimited ? (
+                  <>
+                    <InfinityIcon className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Unlimited Pro</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-3.5 h-3.5 text-red-600" />
+                    <span>
+                      {Math.max(0, userSubscription.samplesLimit - userSubscription.samplesUsed)} / {userSubscription.samplesLimit} Samples
+                    </span>
+                    <span className="text-[10px] text-red-600 font-extrabold ml-0.5 bg-white px-1.5 py-0.2 rounded border border-red-200">
+                      Upgrade
+                    </span>
+                  </>
+                )}
+              </button>
+            )}
+
             {/* Keyboard Shortcuts Trigger */}
             <button
               onClick={onOpenShortcuts}
@@ -187,6 +260,13 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <UserIcon className="w-3.5 h-3.5" />
             <span>Profile</span>
+          </button>
+          <button
+            onClick={() => onTabChange('pricing')}
+            className={`flex items-center gap-1 py-1 px-2.5 rounded-md ${currentTab === 'pricing' ? 'text-red-600 bg-red-50 font-bold' : 'text-slate-600'}`}
+          >
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>Pricing (₹50+)</span>
           </button>
         </div>
       </div>

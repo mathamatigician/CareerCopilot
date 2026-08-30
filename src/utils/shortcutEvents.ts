@@ -46,6 +46,14 @@ export const KEYBOARD_SHORTCUTS: ShortcutDefinition[] = [
     actionId: 'NAV_PROFILE',
   },
   {
+    id: 'nav_pricing',
+    category: 'Navigation',
+    keys: ['Alt', 'S'],
+    description: 'View Pricing & Subscription Plans (₹50+)',
+    actionId: 'NAV_PRICING',
+    badge: 'Plans',
+  },
+  {
     id: 'generate_current_application',
     category: 'Application Tailoring',
     keys: ['Ctrl / ⌘', 'Enter'],

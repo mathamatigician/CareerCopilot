@@ -4,35 +4,44 @@ import { AuthModal } from './components/AuthModal';
 import { TailorStudio } from './components/TailorStudio';
 import { DashboardView } from './components/DashboardView';
 import { ProfileView } from './components/ProfileView';
+import { PricingPage } from './components/PricingPage';
 import { DailyMotivationBanner } from './components/DailyMotivationBanner';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { ShortcutToast } from './components/ShortcutToast';
 import { KEYBOARD_SHORTCUTS, triggerShortcutAction } from './utils/shortcutEvents';
 import { api } from './services/api';
-import { User, UserProfile, JobApplicationRecord } from './types';
+import { subscriptionService } from './services/subscriptionService';
+import { User, UserProfile, JobApplicationRecord, UserSubscription } from './types';
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<'tailor' | 'dashboard' | 'profile'>('tailor');
+  const [currentTab, setCurrentTab] = useState<'tailor' | 'dashboard' | 'profile' | 'pricing'>('tailor');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userSubscription, setUserSubscription] = useState<UserSubscription | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [keyCounter, setKeyCounter] = useState(0); // for resetting tailor studio on 'New Tailor'
 
+  const refreshSubscription = (userId?: string) => {
+    subscriptionService
+      .getStatus(userId || currentUser?.id)
+      .then((sub) => setUserSubscription(sub))
+      .catch((err) => console.error('Failed to load subscription:', err));
+  };
+
   useEffect(() => {
-    // Initial fetch of user & profile
+    // Initial fetch of user & profile & subscription
     const user = api.getCurrentUser();
     if (user) {
       setCurrentUser(user);
       api
         .getProfile()
         .then((p) => setUserProfile(p))
-        .catch(() => {
-          // fallback
-        });
+        .catch(() => {});
     }
+    refreshSubscription(user?.id);
   }, []);
 
   // Global Keyboard Shortcuts Event Handler
@@ -94,35 +103,42 @@ export default function App() {
         return;
       }
 
-      // 5. New Tailoring (Alt + N)
+      // 5. Navigation: Pricing & Subscriptions (4 or Alt + 4 or Alt + S)
+      if ((!isInput && e.key === '4') || (e.altKey && (e.key === '4' || e.key.toLowerCase() === 's'))) {
+        e.preventDefault();
+        triggerShortcutAction('NAV_PRICING', 'Switched to Pricing & Plans (₹50+)');
+        return;
+      }
+
+      // 6. New Tailoring (Alt + N)
       if (e.altKey && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         triggerShortcutAction('NEW_TAILORING', 'Started new tailoring session');
         return;
       }
 
-      // 6. Highlight Matching Skills (Alt + M or Shift + M when not in input)
+      // 7. Highlight Matching Skills (Alt + M or Shift + M when not in input)
       if ((e.altKey && e.key.toLowerCase() === 'm') || (!isInput && e.shiftKey && e.key.toLowerCase() === 'm')) {
         e.preventDefault();
         triggerShortcutAction('HIGHLIGHT_MATCHING_SKILLS', 'Highlighted Matched Skills');
         return;
       }
 
-      // 7. Highlight Missing Skills (Alt + X or Shift + X when not in input)
+      // 8. Highlight Missing Skills (Alt + X or Shift + X when not in input)
       if ((e.altKey && e.key.toLowerCase() === 'x') || (!isInput && e.shiftKey && e.key.toLowerCase() === 'x')) {
         e.preventDefault();
         triggerShortcutAction('HIGHLIGHT_MISSING_SKILLS', 'Highlighted Missing Required Skills');
         return;
       }
 
-      // 8. Toggle Documents / Matrix View (Alt + D)
+      // 9. Toggle Documents / Matrix View (Alt + D)
       if (e.altKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         triggerShortcutAction('TOGGLE_DOCS_VIEW', 'Toggled Studio View');
         return;
       }
 
-      // 9. Daily Motivation Quote Shortcuts (Alt + Q and Alt + Shift + Q)
+      // 10. Daily Motivation Quote Shortcuts (Alt + Q and Alt + Shift + Q)
       if (e.altKey && e.shiftKey && e.key.toLowerCase() === 'q') {
         e.preventDefault();
         triggerShortcutAction('OPEN_QUOTES_LIBRARY', 'Opened Motivation Quotes Library');
@@ -135,7 +151,7 @@ export default function App() {
         return;
       }
 
-      // 10. Toggle Edit Mode in Resume (Ctrl/Cmd + E)
+      // 11. Toggle Edit Mode in Resume (Ctrl/Cmd + E)
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'e') {
         e.preventDefault();
         triggerShortcutAction('TOGGLE_EDIT_MODE', 'Toggled Resume Edit Mode');
@@ -167,6 +183,9 @@ export default function App() {
         case 'NAV_PROFILE':
           setCurrentTab('profile');
           break;
+        case 'NAV_PRICING':
+          setCurrentTab('pricing');
+          break;
         case 'NEW_TAILORING':
           handleNewTailoring();
           break;
@@ -190,12 +209,14 @@ export default function App() {
   const handleAuthSuccess = (user: User, profile: UserProfile) => {
     setCurrentUser(user);
     setUserProfile(profile);
+    refreshSubscription(user.id);
   };
 
   const handleLogout = () => {
     api.setCurrentUser(null);
     setCurrentUser(null);
     setUserProfile(null);
+    refreshSubscription();
     setCurrentTab('tailor');
   };
 
@@ -205,7 +226,7 @@ export default function App() {
   };
 
   const handleApplicationSaved = (_app: JobApplicationRecord) => {
-    // Optional notification or state update
+    refreshSubscription(currentUser?.id);
   };
 
   return (
@@ -215,6 +236,7 @@ export default function App() {
         currentTab={currentTab}
         onTabChange={(tab) => setCurrentTab(tab)}
         currentUser={currentUser}
+        userSubscription={userSubscription}
         onOpenAuth={handleOpenAuth}
         onLogout={handleLogout}
         onNewTailoring={handleNewTailoring}
@@ -230,6 +252,8 @@ export default function App() {
           <TailorStudio
             key={keyCounter}
             userProfile={userProfile}
+            userSubscription={userSubscription}
+            onNavigateToPricing={() => setCurrentTab('pricing')}
             onApplicationSaved={handleApplicationSaved}
           />
         )}
@@ -242,7 +266,18 @@ export default function App() {
           <ProfileView
             user={currentUser}
             profile={userProfile}
+            userSubscription={userSubscription}
+            onNavigateToPricing={() => setCurrentTab('pricing')}
             onProfileUpdated={(up) => setUserProfile(up)}
+            onSubscriptionUpdated={(sub) => setUserSubscription(sub)}
+          />
+        )}
+
+        {currentTab === 'pricing' && (
+          <PricingPage
+            userId={currentUser?.id}
+            onNavigateToTailor={() => setCurrentTab('tailor')}
+            onNotify={(msg) => setToastMessage(msg)}
           />
         )}
       </main>
@@ -255,6 +290,13 @@ export default function App() {
             <span>• Intelligent Job Application Tailoring & Resume Scoring</span>
           </div>
           <div className="flex items-center gap-3 text-slate-400">
+            <button
+              onClick={() => setCurrentTab('pricing')}
+              className="hover:text-red-600 cursor-pointer font-semibold text-slate-600 transition-colors"
+            >
+              Subscription Plans (₹50+)
+            </button>
+            <span>•</span>
             <button
               onClick={() => setShortcutsModalOpen(true)}
               className="hover:text-red-600 cursor-pointer font-medium inline-flex items-center gap-1 transition-colors"

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { User, UserProfile, CertificationItem } from '../types';
+import { User, UserProfile, CertificationItem, UserSubscription } from '../types';
 import { api } from '../services/api';
+import { subscriptionService } from '../services/subscriptionService';
 import {
   User as UserIcon,
   Mail,
@@ -25,6 +26,11 @@ import {
   Edit3,
   Calendar,
   AlertCircle,
+  CreditCard,
+  Zap,
+  RotateCcw,
+  Infinity as InfinityIcon,
+  Crown,
 } from 'lucide-react';
 import { CertificationModal } from './CertificationModal';
 import { CertificationProofViewerModal } from './CertificationProofViewerModal';
@@ -32,10 +38,20 @@ import { CertificationProofViewerModal } from './CertificationProofViewerModal';
 interface ProfileViewProps {
   user: User | null;
   profile: UserProfile | null;
+  userSubscription?: UserSubscription | null;
+  onNavigateToPricing?: () => void;
   onProfileUpdated: (updated: UserProfile) => void;
+  onSubscriptionUpdated?: (sub: UserSubscription) => void;
 }
 
-export const ProfileView: React.FC<ProfileViewProps> = ({ user, profile, onProfileUpdated }) => {
+export const ProfileView: React.FC<ProfileViewProps> = ({
+  user,
+  profile,
+  userSubscription,
+  onNavigateToPricing,
+  onProfileUpdated,
+  onSubscriptionUpdated,
+}) => {
   const [formData, setFormData] = useState<UserProfile>(
     profile || {
       userId: user?.id || 'usr_demo_1',
@@ -646,6 +662,62 @@ B.S. in Computer Science | UC Berkeley (2016 - 2020)`,
             </button>
           </div>
         </div>
+
+        {/* Subscription & Membership Plan */}
+        {userSubscription && (
+          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-red-600" />
+                <span>Subscription & Tailoring Quota</span>
+              </h2>
+              <span className="text-[11px] text-slate-500 font-medium">INR Pricing & Plan Status</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center font-bold">
+                  {userSubscription.planId === 'lifetime' ? (
+                    <Crown className="w-5 h-5 text-amber-600" />
+                  ) : (
+                    <Zap className="w-5 h-5 text-red-600" />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-sm text-slate-900">{userSubscription.planName}</span>
+                    <span className="px-2 py-0.5 text-[10px] font-extrabold uppercase rounded bg-emerald-100 text-emerald-800">
+                      {userSubscription.status}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    {userSubscription.isUnlimited ? (
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                        <InfinityIcon className="w-3.5 h-3.5" /> Unlimited AI Applications Enabled
+                      </span>
+                    ) : (
+                      <span>
+                        <strong className="text-slate-800">{userSubscription.samplesUsed}</strong> of {userSubscription.samplesLimit} free starter samples used
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                {onNavigateToPricing && (
+                  <button
+                    type="button"
+                    onClick={onNavigateToPricing}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer transition-colors"
+                  >
+                    View Plans & Upgrade (from ₹50)
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Default Starter Resume Text */}
         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-3">

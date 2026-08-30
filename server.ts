@@ -18,6 +18,11 @@ import {
   getDashboardStats,
   getActivityLogs,
   logActivity,
+  getAllSubscriptionPlans,
+  getUserSubscription,
+  updateUserSubscription,
+  processSubscriptionCheckout,
+  incrementSubscriptionUsage,
 } from './server/db';
 import { analyzeAndTailorApplication, extractJobFromUrl } from './server/geminiService';
 import { defaultScoringEngine, SCORING_PRESETS } from './server/scoringEngine';
@@ -204,6 +209,18 @@ app.post('/api/analyze-and-tailor', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Job description or URL is required.' });
     }
 
+    // Check user subscription and sample usage limit
+    const usageCheck = incrementSubscriptionUsage(userId);
+    if (!usageCheck.allowed) {
+      return res.status(403).json({
+        error: usageCheck.message || 'Free tailoring sample limit reached.',
+        quotaExceeded: true,
+        samplesUsed: usageCheck.subscription.samplesUsed,
+        samplesLimit: usageCheck.subscription.samplesLimit,
+        subscription: usageCheck.subscription,
+      });
+    }
+
     const userProfile = getUserProfile(userId);
 
     const analysisResult = await analyzeAndTailorApplication({
@@ -241,6 +258,8 @@ app.post('/api/analyze-and-tailor', authMiddleware, async (req, res) => {
     return res.json({
       ...analysisResult,
       savedRecord,
+      subscription: usageCheck.subscription,
+      remainingSamples: usageCheck.remaining,
     });
   } catch (err: any) {
     console.error('Analyze and Tailor Error:', err);
@@ -359,6 +378,82 @@ app.post('/api/export/docx', async (req, res) => {
     console.error('Docx export error:', err);
     return res.status(500).json({ error: err.message || 'Failed to export DOCX' });
   }
+});
+
+// --- SUBSCRIPTION & PRICING ENDPOINTS ---
+
+// Get all subscription plans
+app.get('/api/subscription/plans', (req, res) => {
+  const plans = getAllSubscriptionPlans();
+  return res.json(plans);
+});
+
+// Get user subscription status
+app.get('/api/subscription/status', authMiddleware, (req, res) => {
+  const userId = (req as any).userId;
+  const subscription = getUserSubscription(userId);
+  return res.json(subscription);
+});
+
+// Process subscription checkout & upgrade
+app.post('/api/subscription/checkout', authMiddleware, (req, res) => {
+  const userId = (req as any).userId;
+  try {
+    const { planId, paymentMethod, transactionId } = req.body;
+
+    if (!planId) {
+      return res.status(400).json({ error: 'Plan ID is required.' });
+    }
+
+    const validPlanIds = ['free', 'monthly', 'half_yearly', 'yearly', 'lifetime'];
+    if (!validPlanIds.includes(planId)) {
+      return res.status(400).json({ error: 'Invalid plan ID specified.' });
+    }
+
+    const result = processSubscriptionCheckout(
+      userId,
+      planId,
+      paymentMethod || 'UPI',
+      transactionId
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully activated ${result.subscription.planName}!`,
+      subscription: result.subscription,
+      invoice: result.invoice,
+    });
+  } catch (err: any) {
+    console.error('Subscription checkout error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to process subscription checkout.' });
+  }
+});
+
+// Cancel / update auto renewal
+app.post('/api/subscription/cancel', authMiddleware, (req, res) => {
+  const userId = (req as any).userId;
+  try {
+    const updated = updateUserSubscription(userId, { autoRenew: false });
+    logActivity(
+      userId,
+      'Subscription Auto-Renew Canceled',
+      `Auto-renew turned off for ${updated.planName}. Current access remains valid until ${updated.expiryDate || 'expiry'}.`
+    );
+    return res.json({
+      success: true,
+      message: 'Auto-renewal has been turned off. Your current plan access remains active until the end of the billing period.',
+      subscription: updated,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Reset demo sample credits (for testing/demo convenience)
+app.post('/api/subscription/reset-credits', authMiddleware, (req, res) => {
+  const userId = (req as any).userId;
+  const sub = updateUserSubscription(userId, { samplesUsed: 0 });
+  return res.json({ success: true, subscription: sub });
 });
 
 // --- START SERVER & VITE MIDDLEWARE ---

@@ -1,12 +1,24 @@
 import fs from 'fs';
 import path from 'path';
-import { User, UserProfile, JobApplicationRecord, ActivityLog, DashboardStats, ApplicationStatus } from '../src/types';
+import {
+  User,
+  UserProfile,
+  JobApplicationRecord,
+  ActivityLog,
+  DashboardStats,
+  ApplicationStatus,
+  UserSubscription,
+  SubscriptionPlan,
+  SubscriptionInvoice,
+  SubscriptionPlanId,
+} from '../src/types';
 
 interface DatabaseSchema {
   users: (User & { passwordHash: string })[];
   profiles: Record<string, UserProfile>;
   applications: JobApplicationRecord[];
   activityLogs: ActivityLog[];
+  subscriptions?: Record<string, UserSubscription>;
 }
 
 const DATA_FILE = path.join(process.cwd(), '.data_store.json');
@@ -612,5 +624,285 @@ export function getDashboardStats(userId: string): DashboardStats {
     topSkillsIdentified,
     recentApplications: apps.slice(0, 5),
     activityLogs: logs,
+  };
+}
+
+// --- SUBSCRIPTION & PRICING PLANS ---
+
+export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
+  {
+    id: 'free',
+    name: 'Free Starter',
+    tagline: 'Perfect for evaluating ATS gap analysis with complimentary sample credits.',
+    priceInr: 0,
+    billingPeriodLabel: 'Free Forever',
+    samplesLimit: 10,
+    features: [
+      '10 Free AI Application Tailoring Samples',
+      'Instant ATS Match Score & Breakdown',
+      'Skills Gap Radar & Keyword Analysis',
+      'Experience Alignment Suggestions',
+      'Standard Plain Text & Markdown Exports',
+    ],
+    highlightText: '10 Free Credits Included',
+    ctaLabel: 'Current Plan',
+  },
+  {
+    id: 'monthly',
+    name: 'Monthly Pro Pass',
+    tagline: 'Ultra-low barrier micro-pass for fast job hunting over the next 30 days.',
+    priceInr: 50,
+    originalPriceInr: 99,
+    billingPeriodLabel: 'per month',
+    durationInMonths: 1,
+    samplesLimit: 999999,
+    features: [
+      'Unlimited AI Tailorings for 30 Days',
+      'Zero Sample Quotas / No Daily Limits',
+      'Instant Word (.docx) & Clean PDF Exports',
+      'Custom Scoring Weight Profiles',
+      'Activity History & Application Tracking',
+      'Dedicated Email Support',
+    ],
+    highlightText: 'Special price of ₹50 / month',
+    ctaLabel: 'Upgrade to Monthly',
+  },
+  {
+    id: 'half_yearly',
+    name: 'Half-Yearly Pass (6 Months)',
+    tagline: 'Continuous support through active interview cycles and career transitions.',
+    priceInr: 150,
+    originalPriceInr: 299,
+    billingPeriodLabel: 'for 6 months (₹25/mo)',
+    durationInMonths: 6,
+    samplesLimit: 999999,
+    isPopular: true,
+    badge: 'Most Popular',
+    features: [
+      'Unlimited Tailorings for 6 Full Months',
+      'Deep ATS Keyword Density & Health Audits',
+      'Priority AI Model Processing',
+      'Certification & Credential Verification Badges',
+      'Cover Letter & Executive Summary Studio',
+      'Save 50% compared to regular renewals',
+    ],
+    highlightText: 'Ideal for multi-round interview prep',
+    ctaLabel: 'Get 6-Month Pass',
+  },
+  {
+    id: 'yearly',
+    name: 'Yearly Annual Pro',
+    tagline: 'Full year of unlimited tailoring, ATS audits, and ongoing career progression.',
+    priceInr: 250,
+    originalPriceInr: 599,
+    billingPeriodLabel: 'per year (₹20.8/mo)',
+    durationInMonths: 12,
+    samplesLimit: 999999,
+    isBestValue: true,
+    badge: 'Best Value',
+    features: [
+      'Unlimited Tailorings for 365 Days',
+      'All AI Model Upgrades & Next-Gen Engines',
+      'Custom ATS Weight Profiles & Scoring Presets',
+      'Unlimited Word (.docx) & PDF Downloads',
+      'Interview Question Prep & Actionable Prompts',
+      'Highest value for active career builders',
+    ],
+    highlightText: 'Save 58% + Complete 1-Year Coverage',
+    ctaLabel: 'Get Yearly Plan',
+  },
+  {
+    id: 'lifetime',
+    name: 'Lifetime Founder Pass',
+    tagline: 'Pay once, unlock unlimited AI tailoring forever with no recurring bills ever.',
+    priceInr: 500,
+    originalPriceInr: 1499,
+    billingPeriodLabel: 'One-Time Payment',
+    durationInMonths: undefined,
+    samplesLimit: 999999,
+    badge: 'Founder Edition',
+    features: [
+      'Unlimited AI Tailorings For Life',
+      'Zero Subscription Fees — Pay Once Forever',
+      'VIP Priority AI Processing Queue',
+      'All Future ATS & Feature Updates Included',
+      'Unlimited Application Records & Export Vault',
+      'Founder Distinction Badge in User Profile',
+    ],
+    highlightText: 'One-time ₹500 payment. Never pay again.',
+    ctaLabel: 'Unlock Lifetime Access',
+  },
+];
+
+export function getAllSubscriptionPlans(): SubscriptionPlan[] {
+  return SUBSCRIPTION_PLANS;
+}
+
+export function getUserSubscription(userId: string): UserSubscription {
+  const db = loadDb();
+  if (!db.subscriptions) {
+    db.subscriptions = {};
+  }
+
+  if (!db.subscriptions[userId]) {
+    // Default to free plan with 10 samples limit
+    const now = new Date().toISOString();
+    const defaultSub: UserSubscription = {
+      userId,
+      planId: 'free',
+      planName: 'Free Starter',
+      status: 'active',
+      samplesUsed: 2, // starter initial count so user sees usage out of 10
+      samplesLimit: 10,
+      isUnlimited: false,
+      startDate: now,
+      expiryDate: null,
+      autoRenew: false,
+      invoices: [],
+    };
+    db.subscriptions[userId] = defaultSub;
+    saveDb();
+    return defaultSub;
+  }
+
+  const sub = db.subscriptions[userId];
+
+  // Check if paid time-limited plan has expired
+  if (sub.expiryDate && new Date(sub.expiryDate).getTime() < Date.now() && sub.planId !== 'free' && sub.planId !== 'lifetime') {
+    sub.status = 'expired';
+    sub.isUnlimited = false;
+    saveDb();
+  }
+
+  return sub;
+}
+
+export function updateUserSubscription(userId: string, updates: Partial<UserSubscription>): UserSubscription {
+  const db = loadDb();
+  if (!db.subscriptions) {
+    db.subscriptions = {};
+  }
+  const current = getUserSubscription(userId);
+  const updated: UserSubscription = {
+    ...current,
+    ...updates,
+  };
+  db.subscriptions[userId] = updated;
+  saveDb();
+  return updated;
+}
+
+export function processSubscriptionCheckout(
+  userId: string,
+  planId: SubscriptionPlanId,
+  paymentMethod: string = 'UPI',
+  userTransactionId?: string
+): { subscription: UserSubscription; invoice: SubscriptionInvoice } {
+  const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planId) || SUBSCRIPTION_PLANS[0];
+  const now = new Date();
+  const nowIso = now.toISOString();
+
+  let expiryDate: string | null = null;
+  if (plan.durationInMonths) {
+    const exp = new Date(now);
+    exp.setMonth(exp.getMonth() + plan.durationInMonths);
+    expiryDate = exp.toISOString();
+  }
+
+  const isUnlimited = planId !== 'free';
+  const txnId = userTransactionId || `TXN_${Date.now().toString(36).toUpperCase()}_${Math.floor(1000 + Math.random() * 9000)}`;
+  const invoiceNumber = `INV-${now.getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+
+  const invoice: SubscriptionInvoice = {
+    id: `inv_${Date.now()}`,
+    userId,
+    planId,
+    planName: plan.name,
+    amountInr: plan.priceInr,
+    currency: 'INR',
+    paymentMethod,
+    transactionId: txnId,
+    status: 'paid',
+    createdAt: nowIso,
+    invoiceNumber,
+    periodStart: nowIso,
+    periodEnd: expiryDate || undefined,
+  };
+
+  const currentSub = getUserSubscription(userId);
+  const updatedInvoices = [invoice, ...(currentSub.invoices || [])];
+
+  const updatedSub: UserSubscription = {
+    userId,
+    planId,
+    planName: plan.name,
+    status: 'active',
+    samplesUsed: planId === 'free' ? currentSub.samplesUsed : currentSub.samplesUsed,
+    samplesLimit: plan.samplesLimit,
+    isUnlimited,
+    startDate: nowIso,
+    expiryDate,
+    autoRenew: planId === 'monthly' || planId === 'half_yearly' || planId === 'yearly',
+    lastPaymentDate: nowIso,
+    lastPaymentMethod: paymentMethod,
+    lastTransactionId: txnId,
+    invoices: updatedInvoices,
+  };
+
+  const db = loadDb();
+  if (!db.subscriptions) {
+    db.subscriptions = {};
+  }
+  db.subscriptions[userId] = updatedSub;
+  saveDb();
+
+  // Log activity
+  logActivity(
+    userId,
+    'Subscription Plan Activated',
+    `Upgraded to ${plan.name} (${plan.priceInr === 0 ? 'Free' : `₹${plan.priceInr} INR`}) via ${paymentMethod}.`,
+    undefined,
+    { planId, amountInr: plan.priceInr, invoiceNumber }
+  );
+
+  return { subscription: updatedSub, invoice };
+}
+
+export function incrementSubscriptionUsage(userId: string): {
+  allowed: boolean;
+  remaining: number;
+  subscription: UserSubscription;
+  message?: string;
+} {
+  const sub = getUserSubscription(userId);
+
+  if (sub.isUnlimited || sub.planId === 'lifetime') {
+    sub.samplesUsed += 1;
+    updateUserSubscription(userId, { samplesUsed: sub.samplesUsed });
+    return {
+      allowed: true,
+      remaining: 999999,
+      subscription: sub,
+    };
+  }
+
+  // Check quota for free tier
+  if (sub.samplesUsed >= sub.samplesLimit) {
+    return {
+      allowed: false,
+      remaining: 0,
+      subscription: sub,
+      message: `You have utilized all ${sub.samplesLimit} free tailoring samples. Please upgrade for as low as ₹10 to unlock unlimited tailoring.`,
+    };
+  }
+
+  sub.samplesUsed += 1;
+  const remaining = Math.max(0, sub.samplesLimit - sub.samplesUsed);
+  updateUserSubscription(userId, { samplesUsed: sub.samplesUsed });
+
+  return {
+    allowed: true,
+    remaining,
+    subscription: sub,
   };
 }

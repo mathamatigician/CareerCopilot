@@ -30,6 +30,7 @@ import {
   TailoredResumeData,
   TailoredCoverLetterData,
   JobApplicationRecord,
+  UserSubscription,
 } from '../types';
 import { SkillsGapRadar } from './SkillsGapRadar';
 import { ExperienceAlignmentView } from './ExperienceAlignmentView';
@@ -38,10 +39,17 @@ import { SCORING_PRESETS, ScoringProfileName } from '../../server/scoringEngine'
 
 interface TailorStudioProps {
   userProfile: UserProfile | null;
+  userSubscription?: UserSubscription | null;
+  onNavigateToPricing?: () => void;
   onApplicationSaved?: (app: JobApplicationRecord) => void;
 }
 
-export const TailorStudio: React.FC<TailorStudioProps> = ({ userProfile, onApplicationSaved }) => {
+export const TailorStudio: React.FC<TailorStudioProps> = ({
+  userProfile,
+  userSubscription,
+  onNavigateToPricing,
+  onApplicationSaved,
+}) => {
   // Step tracker: 1 = Inputs, 2 = Results (Decision & Tailored Output)
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
 
@@ -816,9 +824,49 @@ Seeking a Staff Systems Engineer to design high-throughput message streaming, re
 
           {/* Error notice if any */}
           {analysisError && (
-            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-medium flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-              <span>{analysisError}</span>
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-medium flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                <span>{analysisError}</span>
+              </div>
+              {onNavigateToPricing && (analysisError.toLowerCase().includes('sample') || analysisError.toLowerCase().includes('limit') || analysisError.toLowerCase().includes('upgrade')) && (
+                <button
+                  type="button"
+                  onClick={onNavigateToPricing}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shrink-0 cursor-pointer shadow-xs"
+                >
+                  Upgrade from ₹50
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Quota Limit Callout if exhausted */}
+          {userSubscription && !userSubscription.isUnlimited && userSubscription.samplesUsed >= userSubscription.samplesLimit && (
+            <div className="p-5 rounded-2xl bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3 text-left">
+                <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center font-bold shrink-0">
+                  <Zap className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-slate-900">
+                    You've Used All {userSubscription.samplesLimit} Free AI Tailoring Samples
+                  </h4>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Upgrade to Monthly (₹50), Half-Yearly (₹150), Yearly (₹250), or Lifetime Pass (₹500) for unlimited applications.
+                  </p>
+                </div>
+              </div>
+
+              {onNavigateToPricing && (
+                <button
+                  type="button"
+                  onClick={onNavigateToPricing}
+                  className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-black rounded-xl shadow-md shadow-red-600/25 cursor-pointer whitespace-nowrap"
+                >
+                  View Plans (from ₹50) →
+                </button>
+              )}
             </div>
           )}
 

@@ -219,3 +219,55 @@ export interface QuoteSettings {
   isBannerCollapsed: boolean;
 }
 
+export type SubscriptionPlanId = 'free' | 'monthly' | 'half_yearly' | 'yearly' | 'lifetime';
+
+export interface SubscriptionPlan {
+  id: SubscriptionPlanId;
+  name: string;
+  tagline: string;
+  priceInr: number;
+  originalPriceInr?: number;
+  billingPeriodLabel: string;
+  durationInMonths?: number; // null for lifetime or free
+  samplesLimit: number; // 10 for free, 999999 for paid (unlimited)
+  isPopular?: boolean;
+  isBestValue?: boolean;
+  badge?: string;
+  features: string[];
+  highlightText?: string;
+  ctaLabel: string;
+}
+
+export interface SubscriptionInvoice {
+  id: string;
+  userId: string;
+  planId: SubscriptionPlanId;
+  planName: string;
+  amountInr: number;
+  currency: string;
+  paymentMethod: string;
+  transactionId: string;
+  status: 'paid' | 'pending' | 'failed' | 'refunded';
+  createdAt: string;
+  invoiceNumber: string;
+  periodStart: string;
+  periodEnd?: string;
+}
+
+export interface UserSubscription {
+  userId: string;
+  planId: SubscriptionPlanId;
+  planName: string;
+  status: 'active' | 'trialing' | 'expired' | 'canceled';
+  samplesUsed: number;
+  samplesLimit: number;
+  isUnlimited: boolean;
+  startDate: string;
+  expiryDate: string | null; // null for lifetime or free
+  autoRenew: boolean;
+  lastPaymentDate?: string;
+  lastPaymentMethod?: string;
+  lastTransactionId?: string;
+  invoices: SubscriptionInvoice[];
+}
+
