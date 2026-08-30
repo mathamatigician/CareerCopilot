@@ -1,0 +1,6 @@
+{
+  "name": "TailorFit - Job Application & Resume Matcher",
+  "description": "Tailor your resume and cover letter for any job listing with AI-driven skills gap analysis, match scoring, and multi-format DOCX/PDF exports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
